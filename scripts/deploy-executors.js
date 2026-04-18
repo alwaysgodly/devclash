@@ -28,13 +28,19 @@ async function main() {
   const DCAExecutor = await ethers.getContractFactory("DCAExecutor");
   const dca = await DCAExecutor.deploy(registryAddr, oracleAddr, dexAddr);
   await dca.deployed();
-  console.log(`DCAExecutor: ${dca.address}`);
+  console.log(`DCAExecutor:                   ${dca.address}`);
+
+  const Cond = await ethers.getContractFactory("ConditionalTransferExecutor");
+  const cond = await Cond.deploy(registryAddr, oracleAddr);
+  await cond.deployed();
+  console.log(`ConditionalTransferExecutor:   ${cond.address}`);
 
   const merged = {
     ...existing,
     executors: {
       ...(existing.executors || {}),
       dca: dca.address,
+      conditionalTransfer: cond.address,
     },
   };
   fs.writeFileSync(outPath, JSON.stringify(merged, null, 2) + "\n");

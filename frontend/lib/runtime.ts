@@ -2,19 +2,40 @@
 export const RUNTIME_URL =
   process.env.NEXT_PUBLIC_RUNTIME_URL || "http://localhost:7777";
 
+export type DCAStruct = {
+  tokenIn: string;
+  tokenOut: string;
+  tokenInAddr: `0x${string}`;
+  tokenOutAddr: `0x${string}`;
+  amountPerExec: string;
+  intervalSec: number;
+  stopLossBps: number;
+};
+
+export type ConditionalStruct = {
+  token: string;
+  tokenAddr: `0x${string}`;
+  amount: string;
+  recipient: `0x${string}`;
+  priceToken: string;
+  priceTokenAddr: `0x${string}`;
+  priceThreshold: string;
+  direction: "gte" | "lte";
+};
+
 export type ParseResult =
   | {
       ok: true;
       type: "dca";
-      struct: {
-        tokenIn: string;
-        tokenOut: string;
-        tokenInAddr: `0x${string}`;
-        tokenOutAddr: `0x${string}`;
-        amountPerExec: string;
-        intervalSec: number;
-        stopLossBps: number;
-      };
+      struct: DCAStruct;
+      encodedParams: `0x${string}`;
+      llmPrompt?: string;
+      llmRaw?: string;
+    }
+  | {
+      ok: true;
+      type: "conditionalTransfer";
+      struct: ConditionalStruct;
       encodedParams: `0x${string}`;
       llmPrompt?: string;
       llmRaw?: string;

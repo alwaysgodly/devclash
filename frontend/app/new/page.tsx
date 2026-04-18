@@ -18,7 +18,8 @@ import { vaultFactoryAbi, intentRegistryAbi, agentVaultAbi } from "@/lib/abi";
 const PRESETS = [
   "DCA 10 mUSD into mTKA every 30 seconds, stop at -20%",
   "Dollar-cost average 25 mUSD into mTKB every 60 seconds with no stop-loss",
-  "Swap 5 mUSD to mTKA every minute; sell if mTKA drops 15% from start",
+  "When mTKA price goes above $12, send 100 mUSD to 0x1111111111111111111111111111111111111111",
+  "If mTKB drops below $3, transfer 50 mUSD to 0x2222222222222222222222222222222222222222",
 ];
 
 function makeIntentId(owner: `0x${string}`): `0x${string}` {
@@ -49,13 +50,33 @@ export default function NewIntent() {
       ? (vaultAddr as `0x${string}`)
       : null;
 
-  const executor = addresses.dcaExecutor;
   const registry = addresses.intentRegistry;
 
-  const cap = useMemo(() => {
+  const executor = useMemo(() => {
+    if (!parsed || !parsed.ok) return addresses.dcaExecutor;
+    if (parsed.type === "dca") return addresses.dcaExecutor;
+    if (parsed.type === "conditionalTransfer") return addresses.conditionalTransferExecutor;
+    return addresses.dcaExecutor;
+  }, [parsed]);
+
+  const capInfo = useMemo(() => {
     if (!parsed || !parsed.ok) return null;
-    const perExec = Number(parsed.struct.amountPerExec);
-    return String(perExec * capMultiplier);
+    if (parsed.type === "dca") {
+      const perExec = Number(parsed.struct.amountPerExec);
+      return {
+        cap: String(perExec * capMultiplier),
+        tokenSym: parsed.struct.tokenIn,
+        tokenAddr: parsed.struct.tokenInAddr,
+        showSlider: true,
+      };
+    }
+    // conditionalTransfer: cap = amount (one-shot)
+    return {
+      cap: parsed.struct.amount,
+      tokenSym: parsed.struct.token,
+      tokenAddr: parsed.struct.tokenAddr,
+      showSlider: false,
+    };
   }, [parsed, capMultiplier]);
 
   async function onParse() {
@@ -98,12 +119,12 @@ export default function NewIntent() {
   }
 
   function onApprove() {
-    if (!parsed || !parsed.ok || !vault || !intentId || !cap) return;
+    if (!parsed || !parsed.ok || !vault || !intentId || !capInfo) return;
     writeApprove({
       address: vault,
       abi: agentVaultAbi,
       functionName: "approveIntent",
-      args: [intentId, parsed.struct.tokenInAddr, parseEther(cap), executor],
+      args: [intentId, capInfo.tokenAddr, parseEther(capInfo.cap), executor],
     });
   }
 
@@ -164,37 +185,56 @@ export default function NewIntent() {
               )}
             </section>
 
-            {parsed && parsed.ok && (
+            {parsed && parsed.ok && capInfo && (
               <section className="rounded-lg border border-line bg-panel p-6">
                 <h2 className="text-lg font-semibold mb-2">2. Confirm parameters</h2>
                 <div className="text-sm text-text/80 space-y-1 font-mono">
                   <div>Type: <span className="text-accent">{parsed.type}</span></div>
-                  <div>Sell: {parsed.struct.amountPerExec} {parsed.struct.tokenIn} / exec</div>
-                  <div>Buy: {parsed.struct.tokenOut}</div>
-                  <div>Interval: every {parsed.struct.intervalSec}s</div>
-                  <div>
-                    Stop-loss:{" "}
-                    {parsed.struct.stopLossBps > 0
-                      ? `${(parsed.struct.stopLossBps / 100).toFixed(1)}% drop`
-                      : "disabled"}
-                  </div>
+                  {parsed.type === "dca" && (
+                    <>
+                      <div>Sell: {parsed.struct.amountPerExec} {parsed.struct.tokenIn} / exec</div>
+                      <div>Buy: {parsed.struct.tokenOut}</div>
+                      <div>Interval: every {parsed.struct.intervalSec}s</div>
+                      <div>
+                        Stop-loss:{" "}
+                        {parsed.struct.stopLossBps > 0
+                          ? `${(parsed.struct.stopLossBps / 100).toFixed(1)}% drop`
+                          : "disabled"}
+                      </div>
+                    </>
+                  )}
+                  {parsed.type === "conditionalTransfer" && (
+                    <>
+                      <div>Send: {parsed.struct.amount} {parsed.struct.token}</div>
+                      <div>To: {parsed.struct.recipient}</div>
+                      <div>
+                        When: {parsed.struct.priceToken} {parsed.struct.direction === "gte" ? "≥" : "≤"} ${parsed.struct.priceThreshold}
+                      </div>
+                    </>
+                  )}
                 </div>
 
                 <div className="mt-5 border-t border-line pt-4">
-                  <label className="block text-sm mb-1">
-                    Spending cap: {capMultiplier} × {parsed.struct.amountPerExec} {parsed.struct.tokenIn}
-                  </label>
-                  <input
-                    type="range"
-                    min={1}
-                    max={50}
-                    step={1}
-                    value={capMultiplier}
-                    onChange={(e) => setCapMultiplier(Number(e.target.value))}
-                    className="w-full"
-                  />
+                  {capInfo.showSlider ? (
+                    <>
+                      <label className="block text-sm mb-1">
+                        Spending cap: {capMultiplier} × {(parsed.type === "dca" ? parsed.struct.amountPerExec : capInfo.cap)} {capInfo.tokenSym}
+                      </label>
+                      <input
+                        type="range"
+                        min={1}
+                        max={50}
+                        step={1}
+                        value={capMultiplier}
+                        onChange={(e) => setCapMultiplier(Number(e.target.value))}
+                        className="w-full"
+                      />
+                    </>
+                  ) : (
+                    <div className="text-sm">One-shot transfer. Cap exactly matches amount.</div>
+                  )}
                   <div className="text-xs text-muted mt-1">
-                    Total cap: <span className="font-mono text-text">{cap} {parsed.struct.tokenIn}</span> —
+                    Total cap: <span className="font-mono text-text">{capInfo.cap} {capInfo.tokenSym}</span> —
                     agent cannot pull more than this from your vault.
                   </div>
                 </div>

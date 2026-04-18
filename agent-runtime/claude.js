@@ -4,11 +4,17 @@ const { spawn } = require("child_process");
 
 function runClaude(prompt, { timeoutMs = 45_000 } = {}) {
   return new Promise((resolve, reject) => {
+    // Strip ANTHROPIC_API_KEY from the subprocess env so the CLI falls back to
+    // the user's Claude.ai OAuth (Max/Pro subscription). The env-var key on
+    // this machine has no credits; the OAuth session does.
+    const env = { ...process.env };
+    delete env.ANTHROPIC_API_KEY;
     // stdio: 'ignore' on stdin silences the "no stdin in 3s" warning that
     // makes the real error harder to see.
     const proc = spawn("claude", ["-p", prompt], {
       shell: false,
       stdio: ["ignore", "pipe", "pipe"],
+      env,
     });
     let out = "";
     let err = "";

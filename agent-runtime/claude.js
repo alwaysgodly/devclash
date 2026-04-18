@@ -4,7 +4,12 @@ const { spawn } = require("child_process");
 
 function runClaude(prompt, { timeoutMs = 45_000 } = {}) {
   return new Promise((resolve, reject) => {
-    const proc = spawn("claude", ["-p", prompt], { shell: false });
+    // stdio: 'ignore' on stdin silences the "no stdin in 3s" warning that
+    // makes the real error harder to see.
+    const proc = spawn("claude", ["-p", prompt], {
+      shell: false,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
     let out = "";
     let err = "";
     const timer = setTimeout(() => {
@@ -21,7 +26,7 @@ function runClaude(prompt, { timeoutMs = 45_000 } = {}) {
     proc.on("close", (code) => {
       clearTimeout(timer);
       if (code === 0) resolve(out);
-      else reject(new Error(`claude cli exit ${code}: ${err || out}`));
+      else reject(new Error(`claude cli exit ${code}: stderr=${err.trim() || "<empty>"} stdout=${out.trim() || "<empty>"}`));
     });
     proc.on("error", (e) => {
       clearTimeout(timer);

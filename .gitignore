@@ -1,0 +1,32 @@
+node_modules/
+.env
+.env.local
+.env.*.local
+
+# hardhat
+artifacts/
+cache/
+coverage/
+coverage.json
+typechain-types/
+
+# next
+.next/
+out/
+build/
+
+# agent runtime
+agent-runtime/log.jsonl
+agent-runtime/.env
+
+# editor
+.DS_Store
+.vscode/
+.idea/
+
+# plugin dir installed into this folder, not part of submission
+andrej-karpathy-skills/
+
+# debugger / logs
+*.log
+npm-debug.log*

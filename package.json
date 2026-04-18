@@ -1,0 +1,19 @@
+{
+  "name": "onchain-agents-hackathon",
+  "version": "0.1.0",
+  "private": true,
+  "description": "DevClash 2026 PS 02 — Infrastructure for Autonomous Onchain Agents on HeLa testnet. PROTOTYPE ONLY.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:mocks": "hardhat run scripts/deploy-mocks.js --network helaTestnet",
+    "deploy:core": "hardhat run scripts/deploy-core.js --network helaTestnet",
+    "mint:demo": "hardhat run scripts/mint-demo.js --network helaTestnet"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^2.0.2",
+    "@openzeppelin/contracts": "4.9.5",
+    "dotenv": "^16.3.1",
+    "hardhat": "^2.19.4"
+  }
+}

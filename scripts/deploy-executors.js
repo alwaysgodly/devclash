@@ -35,12 +35,18 @@ async function main() {
   await cond.deployed();
   console.log(`ConditionalTransferExecutor:   ${cond.address}`);
 
+  const Rec = await ethers.getContractFactory("RecurringTransferExecutor");
+  const rec = await Rec.deploy(registryAddr);
+  await rec.deployed();
+  console.log(`RecurringTransferExecutor:     ${rec.address}`);
+
   const merged = {
     ...existing,
     executors: {
       ...(existing.executors || {}),
       dca: dca.address,
       conditionalTransfer: cond.address,
+      recurringTransfer: rec.address,
     },
   };
   fs.writeFileSync(outPath, JSON.stringify(merged, null, 2) + "\n");

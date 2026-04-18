@@ -32,8 +32,15 @@ Supported intent types and schemas:
      "direction": "gte" | "lte"
    }
 
-3. recurringTransfer — not yet implemented in this prototype.
-   Return {"type":"error","reason":"recurring transfer not implemented"}.
+3. recurringTransfer — transfer on a time interval, up to an optional max count.
+   {
+     "type": "recurringTransfer",
+     "token": "mUSD" | "mTKA" | "mTKB",
+     "amount": <number of whole tokens>,
+     "recipient": "<0x...>",
+     "intervalSec": <integer seconds, >= 10>,
+     "maxExecutions": <integer >= 0; 0 means unlimited>
+   }
 
 Validation rules:
 - Token symbols must be exactly mUSD, mTKA, or mTKB. Any other name = error.
@@ -90,6 +97,19 @@ function encodeConditional(obj) {
   );
 }
 
+function encodeRecurring(obj) {
+  return ethers.utils.defaultAbiCoder.encode(
+    ["tuple(address,uint256,address,uint256,uint256)"],
+    [[
+      tokenAddr(obj.token),
+      ethers.utils.parseEther(String(obj.amount)),
+      obj.recipient,
+      BigInt(obj.intervalSec).toString(),
+      String(obj.maxExecutions || 0),
+    ]]
+  );
+}
+
 function validateDCA(obj) {
   if (!tokenAddr(obj.tokenIn)) return "unsupported tokenIn";
   if (!tokenAddr(obj.tokenOut)) return "unsupported tokenOut";
@@ -108,6 +128,16 @@ function validateConditional(obj) {
   if (!isHexAddr(obj.recipient)) return "recipient must be 0x-prefixed 40-hex address";
   if (!(Number(obj.priceThreshold) > 0)) return "priceThreshold must be > 0";
   if (obj.direction !== "gte" && obj.direction !== "lte") return "direction must be gte or lte";
+  return null;
+}
+
+function validateRecurring(obj) {
+  if (!tokenAddr(obj.token)) return "unsupported token";
+  if (!(Number(obj.amount) > 0)) return "amount must be > 0";
+  if (!isHexAddr(obj.recipient)) return "recipient must be 0x-prefixed 40-hex address";
+  if (!(Number(obj.intervalSec) >= 10)) return "intervalSec must be >= 10";
+  const me = Number(obj.maxExecutions || 0);
+  if (me < 0 || !Number.isInteger(me)) return "maxExecutions must be a non-negative integer";
   return null;
 }
 
@@ -158,6 +188,26 @@ async function parseIntent(nl) {
         direction: obj.direction,
       },
       encodedParams: encodeConditional(obj),
+      llmPrompt: prompt,
+      llmRaw: raw,
+    };
+  }
+
+  if (obj.type === "recurringTransfer") {
+    const err = validateRecurring(obj);
+    if (err) return { ok: false, error: err, llmPrompt: prompt, llmRaw: raw };
+    return {
+      ok: true,
+      type: "recurringTransfer",
+      struct: {
+        token: obj.token,
+        tokenAddr: tokenAddr(obj.token),
+        amount: String(obj.amount),
+        recipient: obj.recipient,
+        intervalSec: Number(obj.intervalSec),
+        maxExecutions: Number(obj.maxExecutions || 0),
+      },
+      encodedParams: encodeRecurring(obj),
       llmPrompt: prompt,
       llmRaw: raw,
     };

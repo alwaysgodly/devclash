@@ -23,6 +23,15 @@ export type ConditionalStruct = {
   direction: "gte" | "lte";
 };
 
+export type RecurringStruct = {
+  token: string;
+  tokenAddr: `0x${string}`;
+  amount: string;
+  recipient: `0x${string}`;
+  intervalSec: number;
+  maxExecutions: number;
+};
+
 export type ParseResult =
   | {
       ok: true;
@@ -36,6 +45,14 @@ export type ParseResult =
       ok: true;
       type: "conditionalTransfer";
       struct: ConditionalStruct;
+      encodedParams: `0x${string}`;
+      llmPrompt?: string;
+      llmRaw?: string;
+    }
+  | {
+      ok: true;
+      type: "recurringTransfer";
+      struct: RecurringStruct;
       encodedParams: `0x${string}`;
       llmPrompt?: string;
       llmRaw?: string;

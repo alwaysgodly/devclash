@@ -20,6 +20,7 @@ const PRESETS = [
   "Dollar-cost average 25 mUSD into mTKB every 60 seconds with no stop-loss",
   "When mTKA price goes above $12, send 100 mUSD to 0x1111111111111111111111111111111111111111",
   "If mTKB drops below $3, transfer 50 mUSD to 0x2222222222222222222222222222222222222222",
+  "Every 45 seconds send 20 mUSD to 0x3333333333333333333333333333333333333333 up to 5 times",
 ];
 
 function makeIntentId(owner: `0x${string}`): `0x${string}` {
@@ -56,6 +57,7 @@ export default function NewIntent() {
     if (!parsed || !parsed.ok) return addresses.dcaExecutor;
     if (parsed.type === "dca") return addresses.dcaExecutor;
     if (parsed.type === "conditionalTransfer") return addresses.conditionalTransferExecutor;
+    if (parsed.type === "recurringTransfer") return addresses.recurringTransferExecutor;
     return addresses.dcaExecutor;
   }, [parsed]);
 
@@ -67,6 +69,25 @@ export default function NewIntent() {
         cap: String(perExec * capMultiplier),
         tokenSym: parsed.struct.tokenIn,
         tokenAddr: parsed.struct.tokenInAddr,
+        showSlider: true,
+      };
+    }
+    if (parsed.type === "recurringTransfer") {
+      const perExec = Number(parsed.struct.amount);
+      const max = parsed.struct.maxExecutions;
+      // If max is set, cap to max * amount; otherwise use the slider.
+      if (max > 0) {
+        return {
+          cap: String(perExec * max),
+          tokenSym: parsed.struct.token,
+          tokenAddr: parsed.struct.tokenAddr,
+          showSlider: false,
+        };
+      }
+      return {
+        cap: String(perExec * capMultiplier),
+        tokenSym: parsed.struct.token,
+        tokenAddr: parsed.struct.tokenAddr,
         showSlider: true,
       };
     }
@@ -209,6 +230,17 @@ export default function NewIntent() {
                       <div>To: {parsed.struct.recipient}</div>
                       <div>
                         When: {parsed.struct.priceToken} {parsed.struct.direction === "gte" ? "≥" : "≤"} ${parsed.struct.priceThreshold}
+                      </div>
+                    </>
+                  )}
+                  {parsed.type === "recurringTransfer" && (
+                    <>
+                      <div>Send: {parsed.struct.amount} {parsed.struct.token} / exec</div>
+                      <div>To: {parsed.struct.recipient}</div>
+                      <div>Interval: every {parsed.struct.intervalSec}s</div>
+                      <div>
+                        Max executions:{" "}
+                        {parsed.struct.maxExecutions > 0 ? parsed.struct.maxExecutions : "unlimited"}
                       </div>
                     </>
                   )}

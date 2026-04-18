@@ -33,3 +33,6 @@ npm-debug.log*
 frontend/node_modules/
 frontend/.next/
 frontend/out/
+agent-runtime/node_modules/
+agent-runtime/log.jsonl
+agent-runtime/.env

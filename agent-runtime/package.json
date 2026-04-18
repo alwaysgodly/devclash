@@ -1,0 +1,16 @@
+{
+  "name": "agent-runtime",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Off-chain watcher that polls the IntentRegistry, asks Claude to decide/explain, and submits execute() txs. Prototype — runs on a team laptop with `claude` CLI authenticated.",
+  "scripts": {
+    "start": "node index.js",
+    "parse": "node parse-intent.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "ethers": "^5.7.2",
+    "express": "^4.19.2",
+    "cors": "^2.8.5"
+  }
+}

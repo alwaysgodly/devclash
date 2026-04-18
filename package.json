@@ -8,6 +8,7 @@
     "test": "hardhat test",
     "deploy:mocks": "hardhat run scripts/deploy-mocks.js --network helaTestnet",
     "deploy:core": "hardhat run scripts/deploy-core.js --network helaTestnet",
+    "deploy:executors": "hardhat run scripts/deploy-executors.js --network helaTestnet",
     "mint:demo": "hardhat run scripts/mint-demo.js --network helaTestnet"
   },
   "devDependencies": {

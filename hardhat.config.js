@@ -11,7 +11,13 @@ module.exports = {
     },
   },
   networks: {
-    hardhat: {},
+    hardhat: {
+      mining: { auto: true, interval: 2000 },
+    },
+    localhost: {
+      url: "http://127.0.0.1:8545",
+      chainId: 31337,
+    },
     helaTestnet: {
       url: "https://testnet-rpc.helachain.com",
       chainId: 666888,

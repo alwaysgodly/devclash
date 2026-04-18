@@ -34,6 +34,28 @@ function isTerminalError(msg) {
   return TERMINAL_REASONS.some((r) => s.includes(r));
 }
 
+// Ethers v5 nests the revert reason several layers deep for
+// UNPREDICTABLE_GAS_LIMIT errors — flatten everything into a string
+// so the terminal-reason matcher can find it.
+function flattenError(e) {
+  const parts = [];
+  const seen = new Set();
+  function walk(o, depth = 0) {
+    if (!o || depth > 6 || seen.has(o)) return;
+    if (typeof o === "object") seen.add(o);
+    if (typeof o === "string") {
+      parts.push(o);
+      return;
+    }
+    if (typeof o !== "object") return;
+    for (const k of ["reason", "message", "error", "data", "body"]) {
+      if (k in o) walk(o[k], depth + 1);
+    }
+  }
+  walk(e);
+  return parts.join(" | ");
+}
+
 function buildExecutorMap(signer) {
   const map = {};
   if (config.dcaExecutorAddr) {
@@ -141,20 +163,25 @@ async function processIntent(intentId, registry, executors) {
       explanation: decision.explanation,
     });
   } catch (e) {
-    const msg = e.reason || e.message || String(e);
-    if (isTerminalError(msg)) {
+    const flattened = flattenError(e);
+    const shortMsg = e.reason || e.message || String(e);
+    if (isTerminalError(flattened) || isTerminalError(shortMsg)) {
       exhaustedIntents.add(intentId);
+      // find the matching reason for a cleaner log
+      const match = TERMINAL_REASONS.find(
+        (r) => flattened.includes(r) || shortMsg.includes(r)
+      );
       logEvent({
         intentId,
         event: "intent-exhausted",
-        reason: msg.slice(0, 200),
+        reason: match || shortMsg.slice(0, 200),
         note: "cap/state terminal — runtime will stop retrying this intent",
       });
     } else {
       logEvent({
         intentId,
         event: "execute-error",
-        message: msg.slice(0, 500),
+        message: shortMsg.slice(0, 500),
       });
     }
   }

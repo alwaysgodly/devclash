@@ -9,6 +9,10 @@ const Providers = dynamic(() => import("./providers").then((m) => m.Providers), 
   ssr: false,
 });
 
+const Nav = dynamic(() => import("@/components/Nav").then((m) => m.Nav), {
+  ssr: false,
+});
+
 export const metadata: Metadata = {
   title: "Onchain Agents — prototype",
   description:
@@ -21,6 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers>
           <PrototypeBanner />
+          <Nav />
           <main className="min-h-screen">{children}</main>
         </Providers>
       </body>

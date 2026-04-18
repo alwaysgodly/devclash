@@ -27,7 +27,10 @@ export function FundVaultCard() {
     abi: vaultFactoryAbi,
     functionName: "vaultOf",
     args: address ? [address] : undefined,
-    query: { enabled: !!address && isAddressSet(addresses.vaultFactory) },
+    query: {
+      enabled: !!address && isAddressSet(addresses.vaultFactory),
+      refetchInterval: 2000,
+    },
   });
 
   const vault =

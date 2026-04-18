@@ -30,3 +30,6 @@ andrej-karpathy-skills/
 # debugger / logs
 *.log
 npm-debug.log*
+frontend/node_modules/
+frontend/.next/
+frontend/out/

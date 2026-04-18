@@ -13,6 +13,27 @@ const TYPE_LABELS = {
   recurringTransfer: "Recurring transfer",
 };
 
+// Terminal revert reasons — once we see these for an intent, it won't ever
+// execute again in this session, so stop retrying to keep the log clean.
+const TERMINAL_REASONS = [
+  "cap exceeded",
+  "DCA: stopped",
+  "already executed",
+  "max reached",
+  "max executions reached",
+  "inactive",
+  "Rec: inactive",
+  "Cond: inactive",
+  "DCA: inactive",
+  "Registry: already inactive",
+];
+
+const exhaustedIntents = new Set();
+function isTerminalError(msg) {
+  const s = String(msg || "");
+  return TERMINAL_REASONS.some((r) => s.includes(r));
+}
+
 function buildExecutorMap(signer) {
   const map = {};
   if (config.dcaExecutorAddr) {
@@ -45,6 +66,7 @@ function buildExecutorMap(signer) {
 }
 
 async function processIntent(intentId, registry, executors) {
+  if (exhaustedIntents.has(intentId)) return;
   const intent = await getActiveIntent(registry, intentId);
   if (!intent) return;
 
@@ -119,11 +141,22 @@ async function processIntent(intentId, registry, executors) {
       explanation: decision.explanation,
     });
   } catch (e) {
-    logEvent({
-      intentId,
-      event: "execute-error",
-      message: e.message,
-    });
+    const msg = e.reason || e.message || String(e);
+    if (isTerminalError(msg)) {
+      exhaustedIntents.add(intentId);
+      logEvent({
+        intentId,
+        event: "intent-exhausted",
+        reason: msg.slice(0, 200),
+        note: "cap/state terminal — runtime will stop retrying this intent",
+      });
+    } else {
+      logEvent({
+        intentId,
+        event: "execute-error",
+        message: msg.slice(0, 500),
+      });
+    }
   }
 }
 

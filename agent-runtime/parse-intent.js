@@ -141,10 +141,93 @@ function validateRecurring(obj) {
   return null;
 }
 
+function regexFallbackParse(nl) {
+  const text = String(nl).trim();
+  // DCA: "DCA 10 mUSD into mTKA every 30 seconds, stop at -20%"
+  //      "dollar-cost average 25 mUSD into mTKB every 60s with no stop-loss"
+  //      "Swap 5 mUSD to mTKA every minute; sell if mTKA drops 15% from start"
+  const dcaRe = /(?:dca|dollar[- ]cost average|swap)\s+(\d+(?:\.\d+)?)\s+(mUSD|mTKA|mTKB)\s+(?:into|to)\s+(mUSD|mTKA|mTKB)\s+every\s+(\d+)\s*(?:s|sec|seconds|minute|minutes|min)?/i;
+  const dcaMatch = text.match(dcaRe);
+  if (dcaMatch) {
+    const isMinute = /minute|min/i.test(dcaMatch[0]);
+    const intervalSec = Number(dcaMatch[4]) * (isMinute ? 60 : 1);
+    const stopRe = /(?:stop[- ]?loss|stop|sell)\s*(?:at|if|when)?\s*(?:-|drops?\s+)?(\d+(?:\.\d+)?)\s*%/i;
+    const noStopRe = /no stop[- ]?loss/i;
+    const stopMatch = !noStopRe.test(text) && text.match(stopRe);
+    const stopLossBps = stopMatch ? Math.round(Number(stopMatch[1]) * 100) : 0;
+    return {
+      type: "dca",
+      tokenIn: dcaMatch[2],
+      tokenOut: dcaMatch[3],
+      amountPerExec: Number(dcaMatch[1]),
+      intervalSec,
+      stopLossBps,
+    };
+  }
+
+  // Conditional transfer: "When mTKA price goes above $12, send 100 mUSD to 0x..."
+  //                       "If mTKB drops below $3, transfer 50 mUSD to 0x..."
+  const condRe = /(?:when|if)\s+(mUSD|mTKA|mTKB)(?:\s+price)?\s+(?:goes?\s+)?(above|below|drops?\s+below|rises?\s+above|>=|<=|>|<)\s*\$?(\d+(?:\.\d+)?)\s*,?\s*(?:send|transfer)\s+(\d+(?:\.\d+)?)\s+(mUSD|mTKA|mTKB)\s+to\s+(0x[0-9a-fA-F]{40})/i;
+  const condMatch = text.match(condRe);
+  if (condMatch) {
+    const dir = /below|drops?|<=|</i.test(condMatch[2]) ? "lte" : "gte";
+    return {
+      type: "conditionalTransfer",
+      token: condMatch[5],
+      amount: Number(condMatch[4]),
+      recipient: condMatch[6],
+      priceToken: condMatch[1],
+      priceThreshold: Number(condMatch[3]),
+      direction: dir,
+    };
+  }
+
+  // Recurring: "Every 45 seconds send 20 mUSD to 0x... up to 5 times"
+  //            "Every minute send 10 mUSD to 0x..."
+  const recRe = /every\s+(\d+)\s*(s|sec|seconds|minute|minutes|min)?\s*,?\s*(?:send|transfer)\s+(\d+(?:\.\d+)?)\s+(mUSD|mTKA|mTKB)\s+to\s+(0x[0-9a-fA-F]{40})(?:\s+up\s+to\s+(\d+)\s*(?:times|executions)?)?/i;
+  const recMatch = text.match(recRe);
+  if (recMatch) {
+    const unit = (recMatch[2] || "").toLowerCase();
+    const isMinute = unit.startsWith("min");
+    const intervalSec = Number(recMatch[1]) * (isMinute ? 60 : 1);
+    return {
+      type: "recurringTransfer",
+      token: recMatch[4],
+      amount: Number(recMatch[3]),
+      recipient: recMatch[5],
+      intervalSec,
+      maxExecutions: recMatch[6] ? Number(recMatch[6]) : 0,
+    };
+  }
+
+  return null;
+}
+
 async function parseIntent(nl) {
   const prompt = PROMPT.replace("<<<NL>>>", nl.replace(/"""/g, "'''"));
-  const raw = await runClaude(prompt);
-  const obj = extractJson(raw);
+
+  let obj;
+  let raw = "";
+  let usedFallback = false;
+  let llmError = null;
+
+  try {
+    raw = await runClaude(prompt);
+    obj = extractJson(raw);
+  } catch (e) {
+    llmError = e.message;
+    const fb = regexFallbackParse(nl);
+    if (!fb) {
+      return {
+        ok: false,
+        error: `LLM unavailable and regex fallback couldn't match the input. ${llmError}`,
+        llmPrompt: prompt,
+        llmRaw: raw,
+      };
+    }
+    obj = fb;
+    usedFallback = true;
+  }
 
   if (obj.type === "error") {
     return { ok: false, error: obj.reason || "parser rejected", llmPrompt: prompt, llmRaw: raw };
@@ -168,6 +251,8 @@ async function parseIntent(nl) {
       encodedParams: encodeDCA(obj),
       llmPrompt: prompt,
       llmRaw: raw,
+      fallback: usedFallback,
+      llmError,
     };
   }
 
@@ -190,6 +275,8 @@ async function parseIntent(nl) {
       encodedParams: encodeConditional(obj),
       llmPrompt: prompt,
       llmRaw: raw,
+      fallback: usedFallback,
+      llmError,
     };
   }
 
@@ -210,6 +297,8 @@ async function parseIntent(nl) {
       encodedParams: encodeRecurring(obj),
       llmPrompt: prompt,
       llmRaw: raw,
+      fallback: usedFallback,
+      llmError,
     };
   }
 

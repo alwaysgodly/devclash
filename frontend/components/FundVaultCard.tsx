@@ -97,7 +97,11 @@ export function FundVaultCard() {
           }
           className="rounded-md border border-line bg-bg px-4 py-2 text-sm hover:border-accent disabled:opacity-50"
         >
-          {pApprove || waitingApprove ? "Approving…" : "1. Approve"}
+          {pApprove || waitingApprove
+            ? "Approving…"
+            : approveOk
+            ? "✓ 1. Approved"
+            : "1. Approve"}
         </button>
 
         <button
@@ -112,9 +116,32 @@ export function FundVaultCard() {
           }
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {pDeposit || waitingDeposit ? "Depositing…" : "2. Deposit"}
+          {pDeposit || waitingDeposit
+            ? "Depositing…"
+            : depositHash && !waitingDeposit
+            ? "✓ 2. Deposited"
+            : "2. Deposit"}
         </button>
       </div>
+
+      {approveHash && (
+        <div className="text-xs">
+          <span className="text-ok">Approve tx</span>{" "}
+          <span className="font-mono text-text/70 break-all">{approveHash}</span>
+          {waitingApprove && <span className="text-muted"> · mining…</span>}
+          {approveOk && <span className="text-ok"> · confirmed</span>}
+        </div>
+      )}
+      {depositHash && (
+        <div className="text-xs">
+          <span className="text-ok">Deposit tx</span>{" "}
+          <span className="font-mono text-text/70 break-all">{depositHash}</span>
+          {waitingDeposit && <span className="text-muted"> · mining…</span>}
+          {!waitingDeposit && depositHash && (
+            <span className="text-ok"> · confirmed — {amount} {tokenKey} moved into the vault</span>
+          )}
+        </div>
+      )}
 
       <div className="text-xs text-muted">
         Vault: <span className="font-mono break-all">{vault}</span>

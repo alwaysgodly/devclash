@@ -1,5 +1,5 @@
 import { getDefaultConfig } from "@rainbow-me/rainbowkit";
-import { helaTestnet } from "./chains";
+import { helaTestnet, hardhatLocalhost } from "./chains";
 
 // WalletConnect projectId is required by rainbowkit v2. For the prototype a
 // placeholder is fine since we default to the browser-injected (MetaMask)
@@ -10,6 +10,6 @@ const projectId =
 export const wagmiConfig = getDefaultConfig({
   appName: "Onchain Agents (prototype)",
   projectId,
-  chains: [helaTestnet],
+  chains: [hardhatLocalhost, helaTestnet],
   ssr: true,
 });

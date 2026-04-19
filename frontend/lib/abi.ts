@@ -103,6 +103,11 @@ export const erc20Abi = [
   { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
 ] as const;
 
+export const dcaExecutorAbi = [
+  { type: "function", name: "stopped", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "bool" }] },
+  { type: "function", name: "startPriceOf", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint256" }] },
+] as const;
+
 export const mockOracleAbi = [
   { type: "function", name: "setPrice", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [] },
   { type: "function", name: "getPrice", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },

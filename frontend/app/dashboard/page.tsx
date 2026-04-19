@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useAccount, useReadContract, useReadContracts, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
 import { formatEther } from "viem";
 import { ChainGuard } from "@/components/ChainGuard";
+import { BalancesCard } from "@/components/BalancesCard";
 import { addresses, isAddressSet } from "@/lib/addresses";
-import { vaultFactoryAbi, intentRegistryAbi, agentVaultAbi } from "@/lib/abi";
+import { vaultFactoryAbi, intentRegistryAbi, agentVaultAbi, dcaExecutorAbi } from "@/lib/abi";
 
 function shorten(a: string, n = 6) {
   return a.length > n * 2 + 2 ? `${a.slice(0, n + 2)}…${a.slice(-n)}` : a;
@@ -33,7 +34,23 @@ function IntentRow({
     abi: agentVaultAbi,
     functionName: "approvals",
     args: [intentId],
-    query: { enabled: !!vault },
+    query: { enabled: !!vault, refetchInterval: 3000 },
+  });
+
+  const dcaExecutorAddr =
+    (process.env.NEXT_PUBLIC_DCA_EXECUTOR_ADDR as `0x${string}`) || "0x";
+  const intentExecutor = (intent as any)?.executor as string | undefined;
+  const isDca =
+    !!intentExecutor &&
+    !!dcaExecutorAddr &&
+    intentExecutor.toLowerCase() === dcaExecutorAddr.toLowerCase();
+
+  const { data: isStopped } = useReadContract({
+    address: dcaExecutorAddr,
+    abi: dcaExecutorAbi,
+    functionName: "stopped",
+    args: [intentId],
+    query: { enabled: isDca, refetchInterval: 3000 },
   });
 
   const { writeContract, data: hash, isPending } = useWriteContract();
@@ -67,11 +84,18 @@ function IntentRow({
     ? "Revoked"
     : !vaultActive
     ? "Vault-revoked"
+    : isStopped
+    ? "Stopped (stop-loss)"
     : paused
     ? "Paused"
     : "Active";
 
-  const statusColor = statusLabel === "Active" ? "text-ok" : statusLabel === "Paused" ? "text-warn" : "text-err";
+  const statusColor =
+    statusLabel === "Active"
+      ? "text-ok"
+      : statusLabel === "Paused"
+      ? "text-warn"
+      : "text-err";
 
   return (
     <div className="rounded-lg border border-line bg-panel p-4">
@@ -90,23 +114,32 @@ function IntentRow({
         </div>
       )}
 
+      {isStopped && (
+        <div className="mt-3 rounded border border-err/30 bg-err/5 px-3 py-2 text-xs text-err">
+          Stop-loss triggered — this intent will not execute again. Raising the
+          price back won't restart it (stop state is terminal on the executor).
+        </div>
+      )}
+
       <div className="mt-4 flex flex-wrap gap-2">
         {registryActive && vaultActive && (
           <>
-            <button
-              disabled={busy}
-              onClick={() =>
-                writeContract({
-                  address: vault,
-                  abi: agentVaultAbi,
-                  functionName: "setPaused",
-                  args: [intentId, !paused],
-                })
-              }
-              className="rounded border border-line bg-bg px-3 py-1 text-xs hover:border-accent disabled:opacity-50"
-            >
-              {paused ? "Resume" : "Pause"}
-            </button>
+            {!isStopped && (
+              <button
+                disabled={busy}
+                onClick={() =>
+                  writeContract({
+                    address: vault,
+                    abi: agentVaultAbi,
+                    functionName: "setPaused",
+                    args: [intentId, !paused],
+                  })
+                }
+                className="rounded border border-line bg-bg px-3 py-1 text-xs hover:border-accent disabled:opacity-50"
+              >
+                {paused ? "Resume" : "Pause"}
+              </button>
+            )}
             <button
               disabled={busy}
               onClick={() =>
@@ -244,6 +277,8 @@ export default function Dashboard() {
             <div className="text-xs text-muted font-mono break-all">
               Vault: {vault}
             </div>
+
+            <BalancesCard owner={address as `0x${string}`} vault={vault} />
 
             {intentIds.length === 0 ? (
               <div className="rounded-lg border border-line bg-panel p-8 text-center text-text/80">

@@ -1,9 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from "wagmi";
-import { parseEther } from "viem";
+import {
+  useAccount,
+  useReadContract,
+  useWriteContract,
+  useWaitForTransactionReceipt,
+} from "wagmi";
+import { formatEther, parseEther } from "viem";
 import Link from "next/link";
 import { ChainGuard } from "@/components/ChainGuard";
 import { addresses, isAddressSet } from "@/lib/addresses";
@@ -53,16 +58,44 @@ function MintRow({ token, to }: { token: Token; to: `0x${string}` }) {
 }
 
 function PriceRow({ token }: { token: Token }) {
-  const [price, setPrice] = useState("10");
+  const [price, setPrice] = useState("");
   const { writeContract, data: hash, isPending } = useWriteContract();
-  const { isLoading } = useWaitForTransactionReceipt({ hash });
+  const { isLoading, isSuccess } = useWaitForTransactionReceipt({ hash });
   const busy = isPending || isLoading;
 
-  if (!isAddressSet(token.address) || !isAddressSet(addresses.oracle)) return null;
+  const enabled =
+    isAddressSet(token.address) && isAddressSet(addresses.oracle);
+
+  const { data: currentRaw, refetch } = useReadContract({
+    address: addresses.oracle,
+    abi: mockOracleAbi,
+    functionName: "getPrice",
+    args: [token.address],
+    query: { enabled },
+  });
+
+  const currentPrice =
+    typeof currentRaw === "bigint" ? formatEther(currentRaw) : null;
+
+  // Pre-fill the input once, when the first on-chain price arrives.
+  useEffect(() => {
+    if (currentPrice !== null && price === "") setPrice(currentPrice);
+  }, [currentPrice, price]);
+
+  // After a successful setPrice tx, refresh the on-chain value so the
+  // "current" label reflects reality.
+  useEffect(() => {
+    if (isSuccess) refetch();
+  }, [isSuccess, refetch]);
+
+  if (!enabled) return null;
 
   return (
     <div className="flex items-center gap-3">
       <div className="w-24 font-mono text-sm">{token.symbol}</div>
+      <div className="w-28 text-xs text-muted font-mono">
+        current: {currentPrice !== null ? `$${currentPrice}` : "—"}
+      </div>
       <input
         type="number"
         value={price}
@@ -81,7 +114,7 @@ function PriceRow({ token }: { token: Token }) {
         }
         className="rounded-md border border-accent px-4 py-2 text-sm font-medium text-accent disabled:opacity-50"
       >
-        {busy ? "Setting…" : `Set ${token.symbol} = $${price}`}
+        {busy ? "Setting…" : `Set ${token.symbol} = $${price || "?"}`}
       </button>
     </div>
   );

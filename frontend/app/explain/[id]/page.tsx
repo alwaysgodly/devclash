@@ -61,6 +61,12 @@ function RowView({ row }: { row: LogRow }) {
       {row.message && (
         <div className="mt-2 text-xs text-err font-mono">{row.message}</div>
       )}
+      {row.revertReason && (
+        <div className="mt-1 text-xs font-mono">
+          <span className="text-muted">revert reason:</span>{" "}
+          <span className="text-err">{row.revertReason}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -15,18 +15,34 @@ const TYPE_LABELS = {
 
 // Terminal revert reasons — once we see these for an intent, it won't ever
 // execute again in this session, so stop retrying to keep the log clean.
+// NOTE: "Vault: inactive" is *not* listed here. It fires during the brief
+// window between registerIntent (registry) and approveIntent (vault) on the
+// /new flow; treating it as terminal would permanently blackball intents the
+// user is still in the middle of approving.
 const TERMINAL_REASONS = [
   "cap exceeded",
   "DCA: stopped",
   "already executed",
   "max reached",
   "max executions reached",
-  "inactive",
   "Rec: inactive",
   "Cond: inactive",
   "DCA: inactive",
   "Registry: already inactive",
 ];
+
+// canExecute reasons that mean the intent is *permanently* refusing to run
+// (stop-loss hit, execution cap hit, explicitly deactivated, etc). Distinct
+// from transient reasons like "interval not elapsed" which just mean "wait".
+const TERMINAL_CANEXEC_REASONS = new Set([
+  "stopped",
+  "max executions reached",
+  "inactive",
+  "unknown",
+  "wrong executor",
+  "bad params",
+  "same token",
+]);
 
 const exhaustedIntents = new Set();
 function isTerminalError(msg) {
@@ -113,7 +129,19 @@ async function processIntent(intentId, registry, executors) {
     });
     return;
   }
-  if (!canExec) return;
+  if (!canExec) {
+    if (TERMINAL_CANEXEC_REASONS.has(reason)) {
+      exhaustedIntents.add(intentId);
+      logEvent({
+        intentId,
+        event: reason === "stopped" ? "stop-loss-triggered" : "intent-halted",
+        intentType: executor.type,
+        reason,
+        note: "canExecute reports terminal state — runtime will stop retrying",
+      });
+    }
+    return;
+  }
 
   const intentType = executor.type;
   const extras = {
@@ -178,10 +206,18 @@ async function processIntent(intentId, registry, executors) {
         note: "cap/state terminal — runtime will stop retrying this intent",
       });
     } else {
+      // Pull the deepest revert-ish fragment out of the flattened walk —
+      // ethers v5 buries the actual contract reason under several layers
+      // of "cannot estimate gas" wrappers for UNPREDICTABLE_GAS_LIMIT.
+      const revertHint =
+        flattened.match(/execution reverted:? ?([^|]*)/i)?.[1]?.trim() ||
+        flattened.match(/reverted with reason string ['"]([^'"]+)['"]/i)?.[1] ||
+        null;
       logEvent({
         intentId,
         event: "execute-error",
         message: shortMsg.slice(0, 500),
+        revertReason: revertHint || undefined,
       });
     }
   }

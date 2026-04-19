@@ -88,6 +88,7 @@ export type LogRow = {
   block?: number;
   explanation?: string;
   message?: string;
+  revertReason?: string;
 };
 
 export async function fetchLogs({

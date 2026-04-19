@@ -80,8 +80,15 @@ function IntentRow({
   const paused = approvalTuple?.[3];
   const vaultActive = approvalTuple?.[5];
 
+  // Distinguish "vault approval never created" (user forgot to click Approve
+  // cap on /new) from "vault approval existed and was revoked".
+  const neverApproved =
+    !vaultActive && (!cap || cap === 0n) && nonce === 0n;
+
   const statusLabel = !registryActive
     ? "Revoked"
+    : neverApproved
+    ? "Not approved"
     : !vaultActive
     ? "Vault-revoked"
     : isStopped
@@ -118,6 +125,16 @@ function IntentRow({
         <div className="mt-3 rounded border border-err/30 bg-err/5 px-3 py-2 text-xs text-err">
           Stop-loss triggered — this intent will not execute again. Raising the
           price back won't restart it (stop state is terminal on the executor).
+        </div>
+      )}
+
+      {neverApproved && (
+        <div className="mt-3 rounded border border-warn/30 bg-warn/5 px-3 py-2 text-xs text-warn">
+          This intent is registered but the vault never approved a spending
+          cap — every execute will revert with <span className="font-mono">Vault: inactive</span>.
+          Click Deactivate below and create a fresh agent, making sure to
+          complete both <span className="font-semibold">Register intent</span>{" "}
+          and <span className="font-semibold">Approve cap</span> on the New agent page.
         </div>
       )}
 

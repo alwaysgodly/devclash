@@ -1,161 +1,176 @@
 # Onchain Agents — DevClash 2026 PS 02
 
-> ⚠️ **PROTOTYPE — HeLa testnet only. No real funds. All tokens and oracles are mocks.**
-> Do not connect a wallet holding real assets. The agent runtime uses a testnet-only
-> dev key; production would use session keys (ERC-4337), a TEE, or threshold
-> signing — this prototype's signing model is not production-ready.
+> ⚠️ **PROTOTYPE ONLY.** HeLa testnet / local hardhat node only. All tokens
+> (mUSD / mTKA / mTKB) and the price oracle are mocks. Do not connect a wallet
+> that holds real assets.
 
-Infrastructure for deploying and managing autonomous onchain agents that execute
-user-defined intents on the HeLa blockchain. The prototype ships three reference
-intent types on top of a non-custodial per-user "guarded-box" vault:
+Natural-language onchain agents with a **non-custodial per-user vault** and
+**finite spending caps**. You describe an agent in plain English, Claude parses
+it into a typed on-chain intent, and a Node.js runtime watches the chain and
+executes it while you keep the keys the whole time.
 
-- **DCA + stop-loss** — interval swaps with price-drop safety
+Three reference intent types:
+
+- **DCA + stop-loss** — interval token swaps with a price-drop safety net
 - **Conditional transfer** — one-shot transfer when an oracle price crosses a threshold
-- **Recurring transfer** — transfer on a time interval, with an optional max count
+- **Recurring transfer** — transfer on a time interval with an optional max count
 
-Natural-language intents are parsed into typed on-chain params by the local
-`claude` CLI. A Node.js runtime watches the on-chain registry, asks Claude to
-decide + explain each execution cycle, submits the tx, and logs the prompt,
-response, and tx hash for auditability.
+---
 
-## How it maps to PS 02's six requirements
+## TL;DR for judges — run it locally in one command
+
+**Prerequisites** (install these first, then come back):
+
+1. **Node 18+** — `node --version` must print `v18` or newer
+2. **MetaMask** browser extension
+3. **Claude Code CLI** — the runtime spawns `claude -p …` as a subprocess to narrate each execution. Install and authenticate:
+   ```bash
+   npm install -g @anthropic-ai/claude-code
+   claude login    # opens a browser, sign in with your Claude.ai account
+   ```
+   *Skipping this step:* the app still launches, but every "Parse with Claude" click and every runtime decision step will fail with a CLI-not-found error surfaced in the UI.
+
+**Then, one command from the repo root:**
+
+```bash
+npm run demo
+```
+
+That script (`scripts/start-local.sh`) does all of the following so you don't have to:
+
+- installs npm deps in `/`, `/agent-runtime`, and `/frontend` if missing
+- seeds `agent-runtime/.env` and `frontend/.env.local` with the deterministic localhost contract addresses
+- starts a **hardhat node** on `:8545` (logs → `logs/hardhat.log`)
+- runs all three deploy scripts against localhost (mocks → core → executors)
+- starts the **agent runtime** on `:7777` (logs → `logs/runtime.log`)
+- starts the **Next.js frontend** on `:3000` (logs → `logs/frontend.log`)
+- prints the MetaMask setup values you need
+
+`Ctrl-C` in the terminal running `npm run demo` cleans up all three background processes.
+
+### MetaMask setup (one-time)
+
+1. **Add network:**
+   - Name: `Hardhat Localhost`
+   - RPC URL: `http://127.0.0.1:8545`
+   - Chain ID: `31337`
+   - Currency symbol: `ETH`
+2. **Import account** using the Hardhat default account #0 private key:
+   ```
+   0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+   ```
+   This is a well-known public test key — safe to paste on a localhost-only chain. **Never reuse it on a real network.**
+
+### Demo walkthrough
+
+Open `http://localhost:3000` and connect MetaMask.
+
+1. **Home → Step 1:** click **Deploy my agent vault**. Your per-user vault contract is created.
+2. **Home → Step 2 (or the Faucet tab):** mint yourself some mUSD, then Approve + Deposit into your vault. The Dashboard's Token balances card will show wallet → vault transfer.
+3. **Home → Step 3:** click **Create an agent**. On the `/new` page pick one of the natural-language presets (or type your own), then click **Parse with Claude** → **Register intent** → **Approve cap**. All three steps.
+4. **Dashboard:** watch the Executions counter tick up and mUSD flow out of the vault into mTKA. Click **Explain →** on an intent to see every Claude-narrated decision with the prompt and raw response.
+5. **Test the kill switch:** Pause, Resume, Revoke vault, Deactivate, Emergency withdraw — all one click, all bypass the agent.
+6. **Trigger a stop-loss:** on the Faucet page, set mTKA price to $1 (was $10). The DCA intent detects the drop on its next cycle, fires stop-loss, and the Dashboard flips to `Stopped (stop-loss)` with a red banner.
+
+---
+
+## If `npm run demo` isn't convenient — 4 terminals manually
+
+```bash
+# Terminal 1 — hardhat chain (leave running)
+npx hardhat node
+
+# Terminal 2 — deploy contracts (rerun each time hardhat restarts)
+npm run deploy:local
+
+# Terminal 3 — agent runtime
+cd agent-runtime && npm install && node index.js
+
+# Terminal 4 — frontend
+cd frontend && npm install && npm run dev
+```
+
+First-time only: copy `.env.example` / `.env.local.example` and fill in the deterministic localhost addresses, or just run `npm run demo` once (which seeds them) then switch to manual mode.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| Home page shows a green ✓ Vault but "Deploy my agent vault" tx's `gasUsed` is only `21160` | Hardhat node was restarted without redeploying contracts | Rerun `npm run deploy:local` |
+| `/new` page shows `Failed to fetch` on Parse with Claude | Runtime not running on `:7777`, or `NEXT_PUBLIC_RUNTIME_URL` wrong | Check `logs/runtime.log`, verify `http://localhost:7777/health` responds |
+| Every `execute-error` shows `cannot estimate gas` with `revert reason: Vault: inactive` | Intent was registered but **Approve cap** was never clicked on `/new` | Dashboard → Deactivate that intent, then create a fresh one and click both buttons |
+| `cannot estimate gas` with `revert reason: ERC20: transfer amount exceeds balance` | Vault ran out of mUSD (or was never funded with mUSD specifically) | Faucet → mint mUSD → Home Step 2 → deposit into vault |
+| Dashboard shows Executions going up but none are actual swaps | Runtime's `decide()` ran but `execute()` reverted; check the `revert reason` on `/explain/[id]` | Use the reason to diagnose — usually a balance or approval issue |
+| Everything looks fine but Parse button errors with `claude cli exit 127` | Claude CLI not installed or not on PATH | See prerequisites above |
+
+---
+
+## Repo layout
+
+```
+contracts/core/             AgentVault, VaultFactory, IntentRegistry, IExecutor
+contracts/core/executors/   DCAExecutor, ConditionalTransferExecutor, RecurringTransferExecutor
+contracts/mocks/            MockERC20, MockOracle, MockDEX (prototype-only)
+test/                       Hardhat tests (82 passing — unit + integration)
+scripts/                    deploy-mocks, deploy-core, deploy-executors, start-local.sh
+agent-runtime/              Node.js off-chain watcher + Claude CLI wrapper + HTTP server
+frontend/                   Next.js 14 + RainbowKit + wagmi (home, new, dashboard, faucet, explain)
+deployments/                Addresses keyed by network (written by deploy scripts)
+docs/                       System diagram, disclaimers, runbook
+```
+
+## How it maps to PS 02
 
 | # | Requirement | Implementation |
 |---|---|---|
 | 1 | Deploy autonomous agents | `VaultFactory.createVault()` + `IntentRegistry.registerIntent()` from the frontend |
-| 2 | User-defined intents | Natural-language text → `claude -p` → strict typed struct → `abi.encode` → on-chain |
-| 3 | Autonomous execution on conditions | `agent-runtime/` polls every 15s, checks `canExecute`, asks Claude to decide + explain, submits `execute(id, explanation)` |
-| 4 | Monitoring + control | `/dashboard` lists intents. Buttons: pause, unpause, revoke (vault side), deactivate (registry side), `emergencyWithdraw` |
-| 5 | Secure execution + permissioning | Non-custodial vault (owner-gated), per-intent token cap, executor-scoped `pullForIntent` with reentrancy guard + CEI, nonce replay protection, separate ownership of vault vs. executor |
-| 6 | Logs + explainability | Every cycle writes `{ts, intentId, prompt, llm_response, reason, tx_hash}` to JSONL. Surfaced at `/explain/[id]` |
-
-## Repository layout
-
-```
-contracts/core/       AgentVault, VaultFactory, IntentRegistry, IExecutor
-contracts/core/executors/  DCAExecutor, ConditionalTransferExecutor, RecurringTransferExecutor
-contracts/mocks/      MockERC20, MockOracle, MockDEX (prototype-only)
-test/                 Hardhat tests (82 passing — contracts + integration)
-scripts/              deploy-mocks, deploy-core, deploy-executors, mint-demo
-agent-runtime/        Node.js off-chain watcher + `claude` CLI subprocess wrapper
-frontend/             Next.js + RainbowKit + wagmi UI (home, new, dashboard, faucet, explain)
-deployments/          Contract addresses keyed by network name (written by deploy scripts)
-docs/                 System diagram, prototype disclaimers, judge-round notes, runbook
-```
-
-## Quick start (local dev — for judges who want to run everything)
-
-```bash
-# Prerequisites: Node 18+, claude CLI authenticated, a fresh MetaMask on HeLa testnet
-
-npm install
-npm run compile
-npm run test           # sanity: 82 passing
-
-cp .env.example .env   # paste a testnet dev key (never a mainnet key)
-
-npm run deploy:mocks
-npm run deploy:core
-npm run deploy:executors
-npm run mint:demo
-
-# In a separate terminal:
-cd agent-runtime
-cp .env.example .env   # copy addresses from deployments/helaTestnet.json
-npm install
-node index.js          # agent + HTTP server on :7777
-
-# In another terminal:
-cd frontend
-cp .env.local.example .env.local   # copy addresses into NEXT_PUBLIC_* vars
-npm install
-npm run dev            # http://localhost:3000
-```
-
-Full end-to-end walkthrough with per-step expectations lives in
-`docs/running-the-demo.md`.
-
-## Deployment addresses (HeLa testnet)
-
-_Populated after running the deploy scripts. These reflect the exact instance
-the demo URL and video are pointed at._
-
-```
-MockUSD (mUSD):                _TBD_
-MockTKA:                       _TBD_
-MockTKB:                       _TBD_
-MockOracle:                    _TBD_
-MockDEX:                       _TBD_
-VaultFactory:                  _TBD_
-IntentRegistry:                _TBD_
-DCAExecutor:                   _TBD_
-ConditionalTransferExecutor:   _TBD_
-RecurringTransferExecutor:     _TBD_
-```
-
-## Example transaction hashes
-
-_Populated after a live walkthrough — three txs covering the core flows:_
-
-- DCA execution (swap mUSD → mTKA with Claude explanation): `_TBD_`
-- Stop-loss trigger after oracle price drop: `_TBD_`
-- Conditional transfer fired when price crossed threshold: `_TBD_`
+| 2 | User-defined intents | English → `claude -p` → typed struct → `abi.encode` → on-chain |
+| 3 | Autonomous execution on conditions | `agent-runtime/` polls, checks `canExecute`, asks Claude to narrate, submits `execute(id, explanation)` |
+| 4 | Monitoring + control | Dashboard: pause, resume, revoke, deactivate, emergency withdraw |
+| 5 | Secure execution + permissioning | Non-custodial vault, per-intent cap, executor-scoped `pullForIntent`, ReentrancyGuard + CEI, nonce replay guard |
+| 6 | Logs + explainability | JSONL log stream at `GET /logs`, rendered at `/explain/[id]` with full prompt + raw response |
 
 ## Architecture + non-custodial guarantee
 
-See `docs/system-diagram.md` for the ASCII architecture and
-`docs/prototype-disclaimers.md` for what is mocked vs. what production would
-replace. Short version:
+See `docs/system-diagram.md` and `docs/prototype-disclaimers.md` for the detailed
+story. Short version:
 
 - Per-user `AgentVault` holds tokens. Only the vault owner can deposit, withdraw,
   pause, revoke, or `emergencyWithdraw`.
-- Intents get finite token caps bound to a specific executor address. A
-  malicious third-party executor cannot pull funds even if it knows the intent id.
-- The testnet dev key that signs txs on the team laptop can only call executor
-  runners, never vault mutators directly. Compromise blast radius ≤ sum of
-  active intent caps.
-- Revocation is one tx from the owner.
+- Intents carry a finite token cap bound to a specific executor address. Even a
+  malicious third-party executor cannot pull funds without being the registered one.
+- The testnet dev key in the runtime can only call executor runners — it can
+  never call vault mutators. Compromise blast radius ≤ sum of active intent caps.
+- Revocation is one on-chain tx from the owner.
 
 ## Tests
 
 ```bash
-npm run test
+npm install
+npm run compile
+npm run test    # expected: 82 passing
 ```
 
-Expected: **82 passing**. Coverage includes vault access control (owner, wrong
-executor, cap enforcement, pause/revoke, emergency withdraw with active
-intent), registry (duplicate id, deactivate-only-by-owner, nonce gated to
-executor), each executor's happy paths + edge cases (interval, stop-loss
-boundary, double-execute, unknown intent, oracle unset, insufficient balance),
-and an end-to-end integration test running three intent types against one vault
-concurrently.
-
-## Submission deliverables (PS 02 checklist)
-
-- [x] Public GitHub repo with README + code + tests
-- [x] Hardhat contracts + 82 tests
-- [x] Frontend (Next.js + RainbowKit + wagmi)
-- [ ] Deployment addresses (HeLa testnet) — populated after deploy
-- [ ] 3 example tx hashes — populated during walkthrough
-- [ ] Live demo URL (Vercel) — populated after deploy
-- [ ] Demo video ≤ 5 min — recorded in final hours
-- [ ] PR to HelaNetwork/NetworkProjects — submitted before 10 AM deadline
+Coverage: vault access control (owner, wrong executor, cap enforcement,
+pause/revoke, emergency withdraw with active intent), registry (duplicate id,
+deactivate-only-by-owner, executor-only nonce bump), each executor's happy path
++ edges (interval, stop-loss boundary, double-execute, unknown intent, oracle
+unset, insufficient balance), and an end-to-end integration test running all
+three intent types against one vault concurrently.
 
 ## Security and prototype notes
 
-- Contract safety relies on OpenZeppelin 4.9.x (`Ownable`, `ReentrancyGuard`,
-  `SafeERC20`). Solidity 0.8.9, checked math.
-- NL input to Claude is interpolated into a prompt with triple-quote escaping;
-  parsed output is strictly schema-validated (unknown types, bad addresses,
-  out-of-range values → rejected). Prompt injection can at worst make parsing
-  fail — it cannot cause unauthorized actions because all money-moving calls
-  validate on-chain independent of any LLM output.
-- `claude` subprocess is invoked with `shell: false` and explicit arg array —
-  no shell interpolation.
-- Runtime deterministic fallback: if the CLI times out, rate-limits, or returns
-  non-JSON, the runtime executes the deterministic rule and logs the fallback.
-  User intents never deadlock because of our LLM.
-- Contract code is not audited. Do not fork for production.
+- Contracts use OpenZeppelin 4.9.x (`Ownable`, `ReentrancyGuard`, `SafeERC20`). Solidity 0.8.9, checked math.
+- Claude CLI is spawned with `shell: false` and an explicit arg array — no shell interpolation of user input.
+- LLM output is strictly schema-validated; unknown types, bad addresses, or out-of-range values are rejected. Prompt injection at worst makes parsing fail — it cannot cause unauthorized actions because all money-moving calls validate on-chain independent of LLM output.
+- Runtime has a deterministic fallback: if the CLI times out, rate-limits, or returns non-JSON, the runtime executes the deterministic rule and logs the fallback. User intents never deadlock because of our LLM.
+- Contracts are not audited. Do not fork for production.
+
+## Contributors
+
+See [CONTRIBUTORS.md](./CONTRIBUTORS.md).
 
 ## License
 

@@ -37,3 +37,4 @@ agent-runtime/node_modules/
 agent-runtime/log.jsonl
 agent-runtime/.env
 deployments/localhost.json
+logs/

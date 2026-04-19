@@ -6,10 +6,16 @@
   "scripts": {
     "compile": "hardhat compile",
     "test": "hardhat test",
+    "node": "hardhat node",
     "deploy:mocks": "hardhat run scripts/deploy-mocks.js --network helaTestnet",
     "deploy:core": "hardhat run scripts/deploy-core.js --network helaTestnet",
     "deploy:executors": "hardhat run scripts/deploy-executors.js --network helaTestnet",
-    "mint:demo": "hardhat run scripts/mint-demo.js --network helaTestnet"
+    "mint:demo": "hardhat run scripts/mint-demo.js --network helaTestnet",
+    "deploy:mocks:local": "hardhat run scripts/deploy-mocks.js --network localhost",
+    "deploy:core:local": "hardhat run scripts/deploy-core.js --network localhost",
+    "deploy:executors:local": "hardhat run scripts/deploy-executors.js --network localhost",
+    "deploy:local": "npm run deploy:mocks:local && npm run deploy:core:local && npm run deploy:executors:local",
+    "demo": "bash scripts/start-local.sh"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",

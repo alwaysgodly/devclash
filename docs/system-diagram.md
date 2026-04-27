@@ -44,7 +44,8 @@ For judge round 1 (5 PM Apr 18) — architecture walkthrough.
 │                      │──NL text─────▶│  every 15s:                   │
 │  • NL intent form    │               │   1. read intents from chain  │
 │  • Dashboard         │               │   2. check condition          │
-│  • Kill-switch       │◀──logs.jsonl──│   3. `claude -p` decide+      │
+│  • Kill-switch       │◀──logs.jsonl──│   3. LLM CLI (`gemini -p` or  │
+│                      │               │      `claude -p`) decide+     │
 │  • Explain tab       │               │      explain                  │
 │  • Faucet + prices   │               │   4. submit tx                │
 └──────────────────────┘               │   5. append structured log    │
@@ -62,7 +63,7 @@ For judge round 1 (5 PM Apr 18) — architecture walkthrough.
 ## How the 6 PS 02 requirements land on this diagram
 
 1. **Deploy agents** — `VaultFactory.createVault()` + `IntentRegistry.registerIntent()`.
-2. **Define intents** — frontend NL text → `claude -p` parses into a typed params
+2. **Define intents** — frontend NL text → LLM CLI (`gemini -p` or `claude -p`) parses into a typed params
    struct → `IntentRegistry.registerIntent(id, vault, executor, abi.encode(params))`.
 3. **Autonomous execution** — the agent runtime's 15s cycle; no user action required
    between intent creation and execution.
@@ -99,5 +100,5 @@ For judge round 1 (5 PM Apr 18) — architecture walkthrough.
 | MockERC20 with public `mint` | Judges self-serve via `/faucet` | Real ERC20s |
 | MockOracle owner-settable | Demo controls price on demand | Chainlink / Pyth / TWAP |
 | MockDEX (mint on swap) | Zero liquidity management | Cytoswap (Uniswap V3 fork) |
-| Dev key on laptop | `claude` CLI auth is local | Session keys (ERC-4337), TEE, threshold sig |
+| Dev key on laptop | LLM CLI auth (`gemini` or `claude`) is local | Session keys (ERC-4337), TEE, threshold sig |
 | Seconds-based intervals | Demo compressed from days to seconds | Day/week intervals |

@@ -2,7 +2,7 @@
   "name": "agent-runtime",
   "version": "0.1.0",
   "private": true,
-  "description": "Off-chain watcher that polls the IntentRegistry, asks Claude to decide/explain, and submits execute() txs. Prototype — runs on a team laptop with `claude` CLI authenticated.",
+  "description": "Off-chain watcher that polls the IntentRegistry, asks an LLM CLI (Gemini by default, Claude optional) to decide/explain, and submits execute() txs. Prototype — runs on a team laptop with the chosen LLM CLI authenticated.",
   "scripts": {
     "start": "node index.js",
     "parse": "node parse-intent.js"

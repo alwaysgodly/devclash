@@ -1,4 +1,4 @@
-const { runClaude, extractJson } = require("./claude");
+const { runLLM, extractJson } = require("./llm");
 
 function buildPrompt({ intentType, intentId, ownerAddr, reason, extras }) {
   const extrasJson = extras ? JSON.stringify(extras, null, 2) : "{}";
@@ -29,7 +29,7 @@ Constraints:
 
 async function decide(ctx) {
   const prompt = buildPrompt(ctx);
-  const raw = await runClaude(prompt);
+  const raw = await runLLM(prompt);
   const obj = extractJson(raw);
   if (obj.action !== "execute" && obj.action !== "skip") {
     throw new Error(`invalid action: ${JSON.stringify(obj.action)}`);

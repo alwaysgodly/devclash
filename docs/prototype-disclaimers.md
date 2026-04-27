@@ -12,7 +12,7 @@ that must be replaced before any real-world use.
 | `MockOracle` with owner-settable price | Chainlink / Pyth / on-chain TWAP |
 | `MockDEX` with deterministic zero-fee swap at oracle price | Cytoswap (Uniswap V3 fork on HeLa) or other AMM |
 | Second-based intent intervals (e.g. every 30s DCA) | Day/week intervals for real personal finance |
-| Agent runtime on a team laptop with `claude` CLI authenticated | TEE / secure enclave / managed runtime with session keys or threshold signing |
+| Agent runtime on a team laptop with an LLM CLI authenticated (`gemini` by default, or `claude`) | TEE / secure enclave / managed runtime with session keys or threshold signing |
 | Single dev key signing txs | Per-user session keys via account abstraction (ERC-4337), MPC, or threshold signing |
 
 ## Why none of this touches real money

@@ -20,7 +20,9 @@ fail()   { printf "\033[1;31m[demo] %s\033[0m\n" "$*"; exit 1; }
 command -v node     >/dev/null || fail "node not found — install Node 18+"
 command -v npm      >/dev/null || fail "npm not found"
 command -v npx      >/dev/null || fail "npx not found"
-command -v claude   >/dev/null || warn "claude CLI not found on PATH — the runtime's LLM narration will fail until you install and authenticate it. See README.md."
+if ! command -v gemini >/dev/null 2>&1 && ! command -v claude >/dev/null 2>&1; then
+  warn "Neither gemini nor claude CLI was found on PATH — the runtime's LLM narration will fail until one is installed and authenticated. See README.md."
+fi
 
 # --- port probe ------------------------------------------------------------
 if lsof -iTCP:8545 -sTCP:LISTEN -Pn >/dev/null 2>&1; then
@@ -42,6 +44,7 @@ fi
 if [ ! -f agent-runtime/.env ]; then
   banner "Seeding agent-runtime/.env for localhost"
   cat > agent-runtime/.env <<'EOF'
+LLM_PROVIDER=gemini
 RPC_URL=http://127.0.0.1:8545
 CHAIN_ID=31337
 # Hardhat account #0 — public testnet-only key. Never reuse on mainnet.

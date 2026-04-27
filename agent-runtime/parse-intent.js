@@ -2,7 +2,7 @@
 // CLI: `node parse-intent.js "DCA 10 mUSD into mTKA every 30s, stop at -20%"`
 // Library: const { parseIntent } = require("./parse-intent");
 const { ethers } = require("ethers");
-const { runClaude, extractJson } = require("./claude");
+const { runLLM, extractJson } = require("./llm");
 const config = require("./config");
 
 const PROMPT = `You are an intent parser for an on-chain agent. Turn the user's
@@ -212,7 +212,7 @@ async function parseIntent(nl) {
   let llmError = null;
 
   try {
-    raw = await runClaude(prompt);
+    raw = await runLLM(prompt);
     obj = extractJson(raw);
   } catch (e) {
     llmError = e.message;

@@ -156,7 +156,7 @@ export default function NewIntent() {
     <div className="mx-auto max-w-3xl px-6 py-12">
       <h1 className="text-2xl font-semibold tracking-tight">New agent</h1>
       <p className="text-muted text-sm mt-2 max-w-xl">
-        Describe what you want in English. Claude parses it into a typed on-chain
+        Describe what you want in English. An LLM CLI parses it into a typed on-chain
         intent. You approve a finite spending cap for the agent and the runtime
         takes it from there.
       </p>
@@ -197,7 +197,7 @@ export default function NewIntent() {
                 disabled={parsing || !nl}
                 className="mt-4 rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
               >
-                {parsing ? "Asking Claude…" : "Parse with Claude"}
+                {parsing ? "Parsing…" : "Parse intent"}
               </button>
               {parseErr && (
                 <div className="mt-3 rounded border border-err/40 bg-err/10 p-3 text-sm text-err">
@@ -307,7 +307,7 @@ export default function NewIntent() {
             {parsed && parsed.ok && (
               <details className="rounded-lg border border-line bg-panel p-4 text-xs">
                 <summary className="cursor-pointer text-muted">
-                  View Claude's full parse (prompt + response)
+                  View raw LLM parse (prompt + response)
                 </summary>
                 <div className="mt-3 space-y-3">
                   {parsed.llmPrompt && (

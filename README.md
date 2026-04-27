@@ -5,9 +5,10 @@
 > that holds real assets.
 
 Natural-language onchain agents with a **non-custodial per-user vault** and
-**finite spending caps**. You describe an agent in plain English, Claude parses
-it into a typed on-chain intent, and a Node.js runtime watches the chain and
-executes it while you keep the keys the whole time.
+**finite spending caps**. You describe an agent in plain English, an LLM CLI
+(Gemini by default, Claude as an alternative) parses it into a typed on-chain
+intent, and a Node.js runtime watches the chain and executes it while you keep
+the keys the whole time.
 
 Three reference intent types:
 
@@ -23,12 +24,22 @@ Three reference intent types:
 
 1. **Node 18+** — `node --version` must print `v18` or newer
 2. **MetaMask** browser extension
-3. **Claude Code CLI** — the runtime spawns `claude -p …` as a subprocess to narrate each execution. Install and authenticate:
+3. **An LLM CLI** — the runtime spawns `gemini -p …` (default) or `claude -p …` as a subprocess to parse intents and narrate each execution. Pick one:
+
+   **Gemini CLI (default — set `LLM_PROVIDER=gemini` in `agent-runtime/.env`, or leave unset):**
+   ```bash
+   npm install -g @google/gemini-cli
+   gemini          # first run prompts for Google OAuth in a browser
+   ```
+   Or set `GEMINI_API_KEY` in `agent-runtime/.env` to skip the OAuth step.
+
+   **Claude Code CLI (alternative — set `LLM_PROVIDER=claude` in `agent-runtime/.env`):**
    ```bash
    npm install -g @anthropic-ai/claude-code
    claude login    # opens a browser, sign in with your Claude.ai account
    ```
-   *Skipping this step:* the app still launches, but every "Parse with Claude" click and every runtime decision step will fail with a CLI-not-found error surfaced in the UI.
+
+   *Skipping this step entirely:* the app still launches, but every "Parse intent" click and every runtime decision step will fail with a CLI-not-found error surfaced in the UI.
 
 **Then, one command from the repo root:**
 
@@ -67,8 +78,8 @@ Open `http://localhost:3000` and connect MetaMask.
 
 1. **Home → Step 1:** click **Deploy my agent vault**. Your per-user vault contract is created.
 2. **Home → Step 2 (or the Faucet tab):** mint yourself some mUSD, then Approve + Deposit into your vault. The Dashboard's Token balances card will show wallet → vault transfer.
-3. **Home → Step 3:** click **Create an agent**. On the `/new` page pick one of the natural-language presets (or type your own), then click **Parse with Claude** → **Register intent** → **Approve cap**. All three steps.
-4. **Dashboard:** watch the Executions counter tick up and mUSD flow out of the vault into mTKA. Click **Explain →** on an intent to see every Claude-narrated decision with the prompt and raw response.
+3. **Home → Step 3:** click **Create an agent**. On the `/new` page pick one of the natural-language presets (or type your own), then click **Parse intent** → **Register intent** → **Approve cap**. All three steps.
+4. **Dashboard:** watch the Executions counter tick up and mUSD flow out of the vault into mTKA. Click **Explain →** on an intent to see every LLM-narrated decision with the prompt and raw response.
 5. **Test the kill switch:** Pause, Resume, Revoke vault, Deactivate, Emergency withdraw — all one click, all bypass the agent.
 6. **Trigger a stop-loss:** on the Faucet page, set mTKA price to $1 (was $10). The DCA intent detects the drop on its next cycle, fires stop-loss, and the Dashboard flips to `Stopped (stop-loss)` with a red banner.
 
@@ -99,11 +110,11 @@ First-time only: copy `.env.example` / `.env.local.example` and fill in the dete
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | Home page shows a green ✓ Vault but "Deploy my agent vault" tx's `gasUsed` is only `21160` | Hardhat node was restarted without redeploying contracts | Rerun `npm run deploy:local` |
-| `/new` page shows `Failed to fetch` on Parse with Claude | Runtime not running on `:7777`, or `NEXT_PUBLIC_RUNTIME_URL` wrong | Check `logs/runtime.log`, verify `http://localhost:7777/health` responds |
+| `/new` page shows `Failed to fetch` on Parse intent | Runtime not running on `:7777`, or `NEXT_PUBLIC_RUNTIME_URL` wrong | Check `logs/runtime.log`, verify `http://localhost:7777/health` responds |
 | Every `execute-error` shows `cannot estimate gas` with `revert reason: Vault: inactive` | Intent was registered but **Approve cap** was never clicked on `/new` | Dashboard → Deactivate that intent, then create a fresh one and click both buttons |
 | `cannot estimate gas` with `revert reason: ERC20: transfer amount exceeds balance` | Vault ran out of mUSD (or was never funded with mUSD specifically) | Faucet → mint mUSD → Home Step 2 → deposit into vault |
 | Dashboard shows Executions going up but none are actual swaps | Runtime's `decide()` ran but `execute()` reverted; check the `revert reason` on `/explain/[id]` | Use the reason to diagnose — usually a balance or approval issue |
-| Everything looks fine but Parse button errors with `claude cli exit 127` | Claude CLI not installed or not on PATH | See prerequisites above |
+| Everything looks fine but Parse button errors with `gemini cli exit 127` (or `claude cli exit 127`) | The LLM CLI matching `LLM_PROVIDER` is not installed or not on PATH | See prerequisites above |
 
 ---
 
@@ -126,8 +137,8 @@ docs/                       System diagram, disclaimers, runbook
 | # | Requirement | Implementation |
 |---|---|---|
 | 1 | Deploy autonomous agents | `VaultFactory.createVault()` + `IntentRegistry.registerIntent()` from the frontend |
-| 2 | User-defined intents | English → `claude -p` → typed struct → `abi.encode` → on-chain |
-| 3 | Autonomous execution on conditions | `agent-runtime/` polls, checks `canExecute`, asks Claude to narrate, submits `execute(id, explanation)` |
+| 2 | User-defined intents | English → `gemini -p` (or `claude -p`) → typed struct → `abi.encode` → on-chain |
+| 3 | Autonomous execution on conditions | `agent-runtime/` polls, checks `canExecute`, asks the LLM to narrate, submits `execute(id, explanation)` |
 | 4 | Monitoring + control | Dashboard: pause, resume, revoke, deactivate, emergency withdraw |
 | 5 | Secure execution + permissioning | Non-custodial vault, per-intent cap, executor-scoped `pullForIntent`, ReentrancyGuard + CEI, nonce replay guard |
 | 6 | Logs + explainability | JSONL log stream at `GET /logs`, rendered at `/explain/[id]` with full prompt + raw response |
@@ -163,7 +174,7 @@ three intent types against one vault concurrently.
 ## Security and prototype notes
 
 - Contracts use OpenZeppelin 4.9.x (`Ownable`, `ReentrancyGuard`, `SafeERC20`). Solidity 0.8.9, checked math.
-- Claude CLI is spawned with `shell: false` and an explicit arg array — no shell interpolation of user input.
+- The LLM CLI (`gemini` or `claude`) is spawned with `shell: false` and an explicit arg array — no shell interpolation of user input.
 - LLM output is strictly schema-validated; unknown types, bad addresses, or out-of-range values are rejected. Prompt injection at worst makes parsing fail — it cannot cause unauthorized actions because all money-moving calls validate on-chain independent of LLM output.
 - Runtime has a deterministic fallback: if the CLI times out, rate-limits, or returns non-JSON, the runtime executes the deterministic rule and logs the fallback. User intents never deadlock because of our LLM.
 - Contracts are not audited. Do not fork for production.

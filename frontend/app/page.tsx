@@ -56,7 +56,7 @@ export default function Home() {
               <div className="text-sm text-muted uppercase tracking-wide mb-2">Step 3</div>
               <h2 className="text-xl font-semibold mb-1">Describe an agent</h2>
               <p className="text-text/70 mb-4 text-sm">
-                Tell the system what you want in English. Claude parses it into a
+                Tell the system what you want in English. An LLM CLI parses it into a
                 typed on-chain intent and the runtime starts executing automatically.
               </p>
               <Link

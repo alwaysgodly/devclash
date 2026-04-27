@@ -53,7 +53,11 @@ Vercel-connected branch). Set the same env vars in Vercel's project settings.
 
 ## 5. Start the agent runtime (on a team laptop)
 
-The runtime must run on a laptop where `claude` CLI is authenticated.
+The runtime must run on a laptop where an LLM CLI is authenticated. By default
+the runtime calls `gemini -p`; install and authenticate Google's Gemini CLI
+(`npm install -g @google/gemini-cli`, then run `gemini` once for OAuth, or set
+`GEMINI_API_KEY`). Alternatively, set `LLM_PROVIDER=claude` in
+`agent-runtime/.env` and authenticate the Claude CLI (`claude login`) instead.
 
 ```bash
 cd agent-runtime
